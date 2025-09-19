@@ -1,0 +1,70 @@
+on:
+  workflow_call:
+    inputs:
+      pyenv-repository:
+        required: false
+        type: string
+        default: https://github.com/pyenv/pyenv
+      pyenv-version:
+        required: false
+        type: string
+        default: v2.6.7
+      pyenv-root:
+        required: false
+        type: string
+        default: /home/runner/.pyenv
+      python-version:
+        required: false
+        type: string
+        default: .python-version
+      cache-id:
+        required: false
+        type: string
+        default: pyenv-cache
+      runner-image:
+        required: false
+        type: string
+        default: ubuntu-latest
+
+jobs:
+  pyenv:
+    # Don't run twice for internal PRs from our own repo
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ${{ inputs.runner-image }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache pyenv install
+        id: pyenv-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ inputs.pyenv-root }}
+          key: ${{ runner.os }}-${{ inputs.cache-id }}-${{ hashFiles( inputs.python-version ) }}
+          restore-keys: |
+            ${{ runner.os }}-${{ inputs.cache-id }}-
+
+      - name: Install PYENV
+        run: |
+          git clone ${{ inputs.pyenv-repository }} ${{ inputs.pyenv-root }} || true
+          cd ${{ inputs.pyenv-root }} && git fetch && git checkout ${{ inputs.pyenv-version }}
+
+      - if: ${{ steps.pyenv-cache.outputs.cache-hit != 'true' }}
+        name: Setup PYENV
+        run: |
+          echo "${{ inputs.pyenv-root }}/bin" >> "$GITHUB_PATH"
+          echo "PYENV_ROOT=${{ inputs.pyenv-root }}" >> "$GITHUB_ENV"
+
+      - if: ${{ steps.pyenv-cache.outputs.cache-hit != 'true' }}
+        name: Install build deps
+        run: |
+          sudo apt -y install make build-essential libssl-dev zlib1g-dev \
+          libbz2-dev libreadline-dev libsqlite3-dev curl git \
+          libncursesw5-dev xz-utils tk-dev libxml2-dev libxmlsec1-dev libffi-dev liblzma-dev
+
+      - if: ${{ steps.pyenv-cache.outputs.cache-hit != 'true' }}
+        name: Install python versions with PYENV
+        run: |
+          eval "$(pyenv init -)"
+          pyenv rehash
+          pyenv install -s
