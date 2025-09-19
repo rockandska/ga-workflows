@@ -25,12 +25,21 @@ on:
         required: false
         type: string
         default: ubuntu-latest
+    outputs:
+      cache-path:
+        value: ${{ jobs.pyenv.outputs.cache-path }}
+      cache-key:
+        value: ${{ jobs.pyenv.outputs.cache-key }}
+      cache-restore-keys:
+        value: ${{ jobs.pyenv.outputs.cache-restore-keys }}
 
 jobs:
   pyenv:
-    # Don't run twice for internal PRs from our own repo
-    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     runs-on: ${{ inputs.runner-image }}
+    outputs:
+      cache-path: ${{ steps.cache-path.outputs.cache-path }}
+      cache-key: ${{ steps.cache-key.outputs.cache-key }}
+      cache-restore_keys: ${{ steps.cache-restore_keys.outputs.cache-restore_keys }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -68,3 +77,18 @@ jobs:
           eval "$(pyenv init -)"
           pyenv rehash
           pyenv install -s
+
+      - name: Register cache-path value in OUTPUTS
+        id: cache-path
+        run: |
+          echo cache-path="${{ inputs.pyenv-root }}" >> $GITHUB_OUTPUT
+
+      - name: Register cache-key value in OUTPUTS
+        id: cache-key
+        run: |
+          echo cache-key="${{ runner.os }}-${{ inputs.cache-id }}-${{ hashFiles( inputs.python-version ) }}" >> $GITHUB_OUTPUT
+
+      - name: Register cache-restore-keys value in OUTPUTS
+        id: cache-restore-keys
+        run: |
+          echo cache-restore-keys="${{ runner.os }}-${{ inputs.cache-id }}" >> $GITHUB_OUTPUT
